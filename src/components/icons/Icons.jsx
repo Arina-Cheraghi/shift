@@ -31,6 +31,14 @@ export const UsersIcon = ({ className }) => (
     </svg>
 );
 
+export const ExcelIcon = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 3h8l4 4v14H6z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 3v4h4" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 11h8M8 15h8M8 19h8M11 11v8M15 11v8" />
+    </svg>
+);
+
 export const DotsVerticalIcon = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />

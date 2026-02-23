@@ -2,6 +2,174 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Vazirmatn - Regular */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("./assets/fonts/Vazirmatn-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Vazirmatn - Medium */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("./assets/fonts/Vazirmatn-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Vazirmatn - Bold */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("./assets/fonts/Vazirmatn-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+html, body {
+  font-family: "Vazirmatn", sans-serif;
+}
+
+:root {
+  --bg: #f3f4f4;
+  --bg-soft: #eae0cf;
+  --surface: #f7f8f0;
+  --surface-2: #dce6eb;
+  --text: #213448;
+  --muted: #547792;
+  --line: #94b4c1;
+  --primary: #355872;
+  --primary-2: #7aaace;
+}
+
+.dark {
+  --bg: #061e29;
+  --bg-soft: #213448;
+  --surface: #123244;
+  --surface-2: #1d546d;
+  --text: #f3f4f4;
+  --muted: #9cd5ff;
+  --line: #5f9598;
+  --primary: #5f9598;
+  --primary-2: #7aaace;
+}
+
+html, body, #root {
+  min-height: 100%;
+}
+
 body {
-  direction: rtl;
+  background:
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--primary-2) 22%, transparent), transparent 40%),
+    radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--primary) 18%, transparent), transparent 35%),
+    linear-gradient(160deg, var(--bg), var(--bg-soft));
+  color: var(--text);
+  transition: background 240ms ease, color 220ms ease;
+}
+
+.app-surface {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+
+.app-muted {
+  color: var(--muted);
+}
+
+.app-primary-btn {
+  background: linear-gradient(135deg, var(--primary), var(--primary-2));
+  color: #f7f8f0;
+}
+
+/* Low-contrast shift coloring */
+:root {
+  --shift-a: #5CB338;
+  --oncall-cd: #F1FF5E;
+  --weekend-shift: #EB4C4C;
+  --weekend-oncall: #F5824A;
+  --inbound-option: #94b4c1;
+}
+.dark {
+  --shift-a: #5CB338;
+  --oncall-cd: #F1FF5E;
+  --weekend-shift: #EB4C4C;
+  --weekend-oncall: #F5824A;
+  --inbound-option: #9cd5ff;
+}
+.cell-shift-a {
+  background: color-mix(in srgb, var(--shift-a) 18%, transparent);
+  color: var(--text);
+}
+.cell-oncall-cd {
+  background: color-mix(in srgb, var(--oncall-cd) 18%, transparent);
+  color: var(--text);
+}
+.cell-weekend-shift {
+  background: color-mix(in srgb, var(--weekend-shift) 20%, transparent);
+  color: var(--text);
+}
+.cell-weekend-oncall {
+  background: color-mix(in srgb, var(--weekend-oncall) 20%, transparent);
+  color: var(--text);
+}
+.cell-inbound-option {
+  background: color-mix(in srgb, var(--inbound-option) 22%, transparent);
+  color: var(--text);
+}
+
+.scroll-pro::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scroll-pro::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  border-radius: 999px;
+}
+.scroll-pro::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--primary) 45%, var(--surface));
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+.scroll-pro::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--primary) 65%, var(--surface));
+}
+
+.scroll-pro {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--primary) 55%, var(--surface)) color-mix(in srgb, var(--surface-2) 72%, transparent);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--primary-2) 38%, transparent);
+}
+
+@keyframes analytics-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.analytics-enter {
+  animation: analytics-rise 920ms ease both;
+}
+
+.donut-progress {
+  transition: stroke-dashoffset 3s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analytics-enter {
+    animation: none;
+  }
+  .donut-progress {
+    transition: none;
+  }
 }
