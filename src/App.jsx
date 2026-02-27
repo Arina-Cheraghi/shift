@@ -150,36 +150,38 @@ const App = () => {
         </div>
       </header>
 
-      <main className="container w-full mx-auto px-4 sm:px-6 lg:px-0 py-8">
-        {viewMode === 'teams' ? (
-          teams.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 animate-fade-in-up">
-              {teams.map((team) => (
-                <TeamCard
-                  key={team.id}
-                  team={team}
-                  onEditLeader={() => setEditingLeaderTeam(team)}
-                  onDeleteTeam={() => setDeletingTeam(team)}
-                  onAddMember={addMember}
-                  onDeleteMember={(memberName) => setDeletingMember({ teamId: team.id, memberName })}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 rounded-xl app-surface">
-              <p className="text-xl app-muted">هیچ تیمی یافت نشد. برای شروع یک تیم جدید اضافه کنید.</p>
-            </div>
-          )
-        ) : viewMode === 'schedule' ? (
-          <div className="animate-fade-in-up">
-            <ScheduleTable />
-          </div>
-        ) : (
-          <div className="animate-fade-in-up">
-            <AnalyticsTable />
-          </div>
-        )}
-      </main>
+      <main className="app-main-bg">
+  <div className="app-main-content container w-full mx-auto px-4 sm:px-6 lg:px-0 py-8">
+    {viewMode === 'teams' ? (
+      teams.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 animate-fade-in-up">
+          {teams.map((team) => (
+            <TeamCard
+              key={team.id}
+              team={team}
+              onEditLeader={() => setEditingLeaderTeam(team)}
+              onDeleteTeam={() => setDeletingTeam(team)}
+              onAddMember={addMember}
+              onDeleteMember={(memberName) => setDeletingMember({ teamId: team.id, memberName })}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-20 rounded-xl app-surface">
+          <p className="text-xl app-muted">هیچ تیمی یافت نشد. برای شروع یک تیم جدید اضافه کنید.</p>
+        </div>
+      )
+    ) : viewMode === 'schedule' ? (
+      <div className="animate-fade-in-up">
+        <ScheduleTable />
+      </div>
+    ) : (
+      <div className="animate-fade-in-up">
+        <AnalyticsTable />
+      </div>
+    )}
+  </div>
+</main>
 
       {isAddTeamModalOpen && (
         <AddTeamModal

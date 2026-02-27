@@ -1,9 +1,4 @@
-﻿
-
-
-
-
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
   generateSchedule,
   deepClone,
@@ -31,13 +26,32 @@ const csvEscape = (value) => {
   return str;
 };
 
+// =======================
+// ✅ UI labels should be Capitalized: Inbound-A / Outbound-D / Text2-E
+// while values remain lowercase for stability: inbound-a / outbound-d / text2-e
+// =======================
+const capFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+const formatSlotLabel = (val) => {
+  if (!val) return '';
+  const m = String(val).match(/^(text1|text2|inbound|outbound)-([a-f])$/i);
+  if (!m) return val;
+
+  const kindRaw = m[1].toLowerCase();     // inbound/outbound/text1/text2
+  const slot = m[2].toUpperCase();        // A-F
+
+  // Text1/Text2 exactly, Inbound/Outbound with cap
+  if (kindRaw === 'text1') return `Text1-${slot}`;
+  if (kindRaw === 'text2') return `Text2-${slot}`;
+  return `${capFirst(kindRaw)}-${slot}`;  // Inbound-A / Outbound-B
+};
+
 const MEMBER_ROLE_OPTIONS = [
-  { value: 'text', label: 'text' },
-  { value: 'inbound', label: 'inbound' },
-  { value: 'outbound', label: 'outbound' },
-  { value: 'inbound-option', label: 'inbound-option' },
-  { value: 'shift', label: 'shift' },
-  { value: 'oncall', label: 'oncall' },
+  { value: 'text', label: 'Text' },
+  { value: 'inbound', label: 'Inbound' },
+  { value: 'outbound', label: 'Outbound' },
+  { value: 'inbound-option', label: 'Inbound-option' },
+  { value: 'shift', label: 'Shift' },
+  { value: 'oncall', label: 'Oncall' },
   { value: 'off', label: 'off' },
   { value: 'ot', label: 'OT', requiresTeamOff: true },
 ];
@@ -45,23 +59,24 @@ const MEMBER_ROLE_OPTIONS = [
 const SLOT_TYPES = new Set(['A', 'B', 'C', 'D', 'E', 'F']);
 
 const buildSlotOptions = (slotLetter) => {
-  const suffix = slotLetter.toLowerCase();
-  return [
-    { value: `inbound-${suffix}`, label: `inbound-${suffix}` },
-    { value: `outbound-${suffix}`, label: `outbound-${suffix}` },
-    { value: `text1-${suffix}`, label: `text1-${suffix}` },
-    { value: `text2-${suffix}`, label: `text2-${suffix}` },
-    { value: 'inbound-option', label: 'inbound-option' },
+  const suffix = slotLetter.toLowerCase();   // values stay lowercase
+  const opts = [
+    { value: `inbound-${suffix}`, label: `Inbound-${slotLetter}` },
+    { value: `outbound-${suffix}`, label: `Outbound-${slotLetter}` },
+    { value: `text1-${suffix}`, label: `Text1-${slotLetter}` },
+    { value: `text2-${suffix}`, label: `Text2-${slotLetter}` },
+    { value: 'inbound-option', label: 'Inbound-option' },
     { value: 'ot', label: 'OT', requiresTeamOff: true },
     { value: 'off', label: 'off' },
   ];
+  return opts;
 };
 
 const MEMBER_ROLE_MAP = {
-  text: { role: 'text', type: 'text' },
-  inbound: { role: 'inbound', type: 'inbound' },
-  outbound: { role: 'outbound', type: 'outbound' },
-  'inbound-option': { role: 'inbound-option', type: 'inbound-option' },
+  text: { role: 'Text', type: 'text' },
+  inbound: { role: 'Inbound', type: 'inbound' },
+  outbound: { role: 'Outbound', type: 'outbound' },
+  'inbound-option': { role: 'Inbound-option', type: 'inbound-option' },
   shift: { role: 'Shift', type: 'shift' },
   oncall: { role: 'Oncall', type: 'oncall' },
   off: { role: 'off', type: 'off' },
@@ -90,7 +105,9 @@ const getMemberRoleOptions = (day, teamData, currentValue) => {
   const slot = getSlotLetter(day, teamData);
   const base = slot ? buildSlotOptions(slot) : MEMBER_ROLE_OPTIONS;
   if (!currentValue || base.some((opt) => opt.value === currentValue)) return base;
-  return [{ value: currentValue, label: currentValue }, ...base];
+
+  // if for any reason currentValue isn't in base, keep it visible with formatted label
+  return [{ value: currentValue, label: formatSlotLabel(currentValue) }, ...base];
 };
 
 const loadEditsForMonth = (year, month) => {
@@ -121,28 +138,42 @@ const clearEditsForMonth = (year, month) => {
   }
 };
 
+// =======================
+// ✅ FIX: recognize stored roles like "Inbound-A" / "Text2-E" (case-insensitive)
+// and map them to select values like "inbound-a" / "text2-e"
+// =======================
 const getMemberSelectValue = (member) => {
   if (!member) return 'off';
 
-  const role = normalizeRoleValue(member.role);
-  if (!role || role === '-' || role === 'off' || role.includes('تعطیل')) return 'off';
-  if (role === 'ot') return 'ot';
-  if (role.includes('inbound-option')) return 'inbound-option';
+  const rawRole = (member.role ?? '').toString().trim();
+  const roleLower = rawRole.toLowerCase();
 
-  const slotMatch = role.match(/^(text1|text2|inbound|outbound)-([a-f])$/);
-  if (slotMatch) return `${slotMatch[1]}-${slotMatch[2]}`;
+  if (!rawRole || rawRole === '-' || roleLower === 'off' || roleLower.includes('تعطیل')) return 'off';
+  if (roleLower === 'ot') return 'ot';
+  if (roleLower.includes('inbound-option')) return 'inbound-option';
+
+  // accept: Inbound-A, inbound-a, TEXT2-E, etc.
+  const slotMatch = rawRole.match(/^(text1|text2|inbound|outbound)-([a-f])$/i);
+  if (slotMatch) {
+    const kind = slotMatch[1].toLowerCase(); // text1|text2|inbound|outbound
+    const slot = slotMatch[2].toLowerCase(); // a-f
+    return `${kind}-${slot}`; // option values are lowercase
+  }
 
   if (member.type && MEMBER_ROLE_MAP[member.type]) return member.type;
 
-  if (role.includes('inbound')) return 'inbound';
-  if (role.includes('outbound')) return 'outbound';
-  if (role.includes('text')) return 'text';
-  if (role.includes('oncall')) return 'oncall';
-  if (role.includes('shift')) return 'shift';
+  if (roleLower.includes('inbound')) return 'inbound';
+  if (roleLower.includes('outbound')) return 'outbound';
+  if (roleLower.includes('text')) return 'text';
+  if (roleLower.includes('oncall')) return 'oncall';
+  if (roleLower.includes('shift')) return 'shift';
 
   return 'off';
 };
 
+// =======================
+// ✅ FIX: when user selects inbound-a etc, store as Inbound-A / Outbound-D / Text2-E
+// =======================
 const getMemberRoleMeta = (val) => {
   if (!val) return null;
   if (MEMBER_ROLE_MAP[val]) return MEMBER_ROLE_MAP[val];
@@ -267,7 +298,7 @@ const ScheduleTable = () => {
     const next = getMemberRoleMeta(val);
     if (!next) return;
 
-    member.role = next.role;
+    member.role = next.role; // ✅ stores Inbound-A / Outbound-D / Text2-E
     member.type = next.type;
     setEditSchedule(updated);
     pushHistory(updated);
@@ -570,7 +601,7 @@ const ScheduleTable = () => {
           ...editSchedule.map((day) => {
             const tData = day.teamsData.find((d) => d.teamId === team.id);
             const mData = tData?.members.find((m) => m.name === member);
-            return mData?.role || "-";
+            return mData?.role || "-"; // ✅ exports Inbound-A / Outbound-D / Text2-E
           })
         ];
         rows.push(memberRow);
@@ -601,17 +632,14 @@ const ScheduleTable = () => {
 
   return (
     <div className="w-full font-sans z-10">
-      {/* Outer premium frame */}
       <div className="relative app-surface overflow-hidden rounded-3xl app-soft-enter">
-        {/* Soft glow */}
         <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[color:var(--primary-2)]/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[color:var(--primary)]/10 blur-3xl" />
 
-        {/* Top bar */}
         <div className="p-5 bg-[color:var(--surface-2)]/18 backdrop-blur-xl flex justify-between items-center border-b border-[color:var(--line)]/45 sticky top-0 z-10 transition-colors">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-2xl bg-[color:var(--surface-2)]/35 border border-[color:var(--line)]/45 grid place-items-center shadow-inner">
+              <div className="w-9 h-9 rounded-2xl bg-[color:var(--surface-2)]/35 border border-[color:var(--line)]/45 grid place-items-center shadow-inner">
                 <span className="text-[color:var(--primary)] font-black">S</span>
               </div>
               <div>
@@ -619,7 +647,6 @@ const ScheduleTable = () => {
                   سامانه مدیریت شیفت
                 </h2>
               </div>
-           
             </div>
 
             <div className="h-8 w-px bg-[color:var(--line)]/45 mx-1 hidden md:block" />
@@ -679,20 +706,19 @@ const ScheduleTable = () => {
             >
               ⟳ بعدی
             </button>
-            
           </div>
-           <button
-              type="button"
-              onClick={handleExportExcel}
-              title="دانلود اکسل"
-              aria-label="دانلود اکسل"
-              className="w-10 h-10 rounded-2xl bg-green-600/40 border border-[color:var(--line)]/45 grid place-items-center shadow-inner text-green-800 transition-colors hover:bg-[color:var(--surface-2)]/55"
-            >
-              <ExcelIcon className="h-5 w-5" />
-            </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            title="دانلود اکسل"
+            aria-label="دانلود اکسل"
+            className="w-10 h-10 rounded-2xl bg-green-600/40 border border-[color:var(--line)]/45 grid place-items-center shadow-inner text-green-800 transition-colors hover:bg-[color:var(--surface-2)]/55"
+          >
+            <ExcelIcon className="h-5 w-5" />
+          </button>
         </div>
 
-        {/* Table container */}
         <div className="scroll-pro overflow-auto max-h-[78vh]">
           <table className="schedule-table w-full border-collapse text-[11px] text-center table-fixed">
             <thead className="sticky top-0 z-30">
@@ -714,8 +740,7 @@ const ScheduleTable = () => {
                 {editSchedule.map((day, i) => (
                   <th
                     key={i}
-                    className={`p-2 border-r border-[color:var(--line)]/30 w-[104px] ${day.isWeekend || day.isHoliday ? 'bg-[color:var(--surface-2)]/16' : ''
-                      }`}
+                    className={`p-2 border-r border-[color:var(--line)]/30 w-[104px] ${day.isWeekend || day.isHoliday ? 'bg-[color:var(--surface-2)]/16' : ''}`}
                   >
                     <div className={`text-sm font-black ${day.isWeekend ? 'text-[color:var(--primary)]' : 'text-[color:var(--text)]'}`}>
                       {day.date.split('/')[2]}
@@ -730,7 +755,6 @@ const ScheduleTable = () => {
                   سرشیفت
                 </th>
 
-                {/* padding for stats */}
                 <th className="bg-[color:var(--surface-2)]/22 p-2 border-r border-[color:var(--line)]/45 w-[80px] app-muted">—</th>
                 <th className="bg-[color:var(--surface-2)]/22 p-2 border-r border-[color:var(--line)]/45 w-[85px] app-muted">—</th>
                 <th className="bg-[color:var(--surface-2)]/22 p-2 border-r border-[color:var(--line)]/45 w-[90px] app-muted">—</th>
@@ -766,21 +790,17 @@ const ScheduleTable = () => {
             <tbody>
               {sortedTeams.map(team => (
                 <React.Fragment key={team.id}>
-                  {/* Team row */}
                   <tr className="bg-[color:var(--surface-2)]/14 font-black border-b border-[color:var(--line)]/30 team-row">
-                    {/* âœ… ÙÙ‚Ø· Ø§ÙÙ‚ÛŒ sticky: right-0 (Ø¹Ù…ÙˆØ¯ÛŒ sticky Ù†ÛŒØ³Øª Ú†ÙˆÙ† top Ù†Ø¯Ø§Ø±ÛŒÙ…) */}
                     <td className="sticky right-0 z-20 bg-[color:var(--surface)] p-3 px-4 border-l border-[color:var(--line)]/35 text-right text-[color:var(--primary)] text-[11px] shadow-[-10px_0_20px_rgba(0,0,0,0.25)] team-name-cell">
                       {team.name}
                     </td>
 
-                    {/* STATS: Ø­Ø±Ú©Øª Ú©Ù†Ù†Ø¯ (sticky Ù†Ø¯Ø§Ø±Ù†Ø¯) */}
                     <td className="p-2 border-r border-[color:var(--line)]/35 w-[80px]" />
                     <td className="p-2 border-r border-[color:var(--line)]/35 w-[85px]" />
                     <td className="p-2 border-r border-[color:var(--line)]/35 w-[90px]" />
 
                     {editSchedule.map((day, dayIdx) => {
                       const tData = day.teamsData.find(d => d.teamId === team.id);
-
                       const weekend = day.isWeekend || day.isHoliday;
 
                       const bg =
@@ -793,6 +813,7 @@ const ScheduleTable = () => {
                               : (!weekend && tData?.isOnCall)
                                 ? "cell-oncall-cd"
                                 : "app-muted";
+
                       const val = teamSelectValue(day, dayIdx, team.id);
                       const defaultLabel = getDefaultTeamLabel(dayIdx, day, team.id);
 
@@ -819,7 +840,6 @@ const ScheduleTable = () => {
                     })}
                   </tr>
 
-                  {/* Members */}
                   {team.members.map((member, rowIdx) => (
                     <tr
                       key={member}
@@ -829,12 +849,10 @@ const ScheduleTable = () => {
                         hover:bg-[color:var(--surface-2)]/24
                       `}
                     >
-                      {/* âœ… ÙÙ‚Ø· Ø§ÙÙ‚ÛŒ sticky: right-0 */}
                       <td className="sticky right-0 z-20 bg-[color:var(--surface)] p-2.5 px-4 border-l border-[color:var(--line)]/30 text-right text-[color:var(--text)] shadow-[-10px_0_20px_rgba(0,0,0,0.25)]">
                         {member}
                       </td>
 
-                      {/* STATS: Ø­Ø±Ú©Øª Ú©Ù†Ù†Ø¯ (sticky Ù†Ø¯Ø§Ø±Ù†Ø¯) */}
                       {(() => {
                         const s = memberStatsMap[member] || { text: 0, inbound: 0, outbound: 0 };
                         return (
@@ -856,32 +874,26 @@ const ScheduleTable = () => {
                         const tData = day.teamsData.find(d => d.teamId === team.id);
                         const mData = tData?.members.find(m => m.name === member);
                         const selectValue = getMemberSelectValue(mData);
+
                         const options = getMemberRoleOptions(day, tData, selectValue);
                         const teamOff = isTeamOff(tData);
                         const isOt = selectValue === 'ot';
 
                         let cellStyle = "app-muted";
-
                         const weekend = day.isWeekend || day.isHoliday;
 
                         if (isOt) {
                           cellStyle = "cell-ot font-bold";
-
                         } else if (mData?.type === 'inbound-option') {
                           cellStyle = "cell-inbound-option font-bold shadow-inner";
-
                         } else if (weekend && tData?.statusLabel === 'Shift') {
                           cellStyle = "cell-weekend-shift";
-
                         } else if (weekend && tData?.isOnCall) {
                           cellStyle = "cell-weekend-oncall";
-
                         } else if (!weekend && tData?.slotType === 'A') {
                           cellStyle = "cell-shift-a";
-
                         } else if (!weekend && tData?.isOnCall && (tData?.slotType === 'C' || tData?.slotType === 'D')) {
                           cellStyle = "cell-oncall-cd";
-
                         } else if (weekend) {
                           cellStyle = "opacity-30";
                         }
@@ -901,7 +913,8 @@ const ScheduleTable = () => {
                                   className="bg-[color:var(--surface)] text-[color:var(--text)]"
                                   disabled={opt.requiresTeamOff && !teamOff}
                                 >
-                                  {opt.label}
+                                  {/* ✅ show labels as Inbound-A / Outbound-D / Text2-E */}
+                                  {formatSlotLabel(opt.label)}
                                 </option>
                               ))}
                             </select>
