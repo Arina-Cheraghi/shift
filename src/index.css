@@ -43,18 +43,36 @@ html, body {
   --line: #94b4c1;
   --primary: #355872;
   --primary-2: #7aaace;
+  --ring: #7aaace;
+  --select-bg: color-mix(in srgb, var(--surface) 90%, transparent);
+  --select-bg-hover: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  --select-border: color-mix(in srgb, var(--line) 60%, transparent);
+  --select-border-hover: color-mix(in srgb, var(--primary-2) 35%, var(--line));
+  --select-table-bg: color-mix(in srgb, var(--surface) 75%, transparent);
+  --cell-mix: 18%;
+  --cell-mix-strong: 22%;
+  --cell-mix-weekend: 20%;
 }
 
 .dark {
   --bg: #061e29;
-  --bg-soft: #213448;
-  --surface: #123244;
-  --surface-2: #1d546d;
+  --bg-soft: #0c2c55;
+  --surface: #1b3c53;
+  --surface-2: #234c6a;
   --text: #f3f4f4;
-  --muted: #9cd5ff;
-  --line: #5f9598;
-  --primary: #5f9598;
-  --primary-2: #7aaace;
+  --muted: #acbac4;
+  --line: #355872;
+  --primary: #7aaace;
+  --primary-2: #629fad;
+  --ring: #9cd5ff;
+  --select-bg: color-mix(in srgb, var(--surface) 80%, transparent);
+  --select-bg-hover: color-mix(in srgb, var(--surface-2) 80%, transparent);
+  --select-border: color-mix(in srgb, var(--line) 70%, transparent);
+  --select-border-hover: color-mix(in srgb, var(--primary-2) 45%, var(--line));
+  --select-table-bg: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  --cell-mix: 10%;
+  --cell-mix-strong: 14%;
+  --cell-mix-weekend: 12%;
 }
 
 html, body, #root {
@@ -73,6 +91,7 @@ body {
 .app-surface {
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  transition: background 220ms ease, border-color 220ms ease, box-shadow 240ms ease, transform 220ms ease;
 }
 
 .app-muted {
@@ -84,6 +103,50 @@ body {
   color: #f7f8f0;
 }
 
+.app-select {
+  background: var(--select-bg);
+  border: 1px solid var(--select-border);
+  color: var(--text);
+  border-radius: 0.75rem;
+  padding: 0.35rem 0.7rem;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 60%, transparent);
+  transition: border-color 160ms ease, background 200ms ease, box-shadow 200ms ease, transform 160ms ease;
+}
+
+.app-select:hover {
+  background: var(--select-bg-hover);
+  border-color: var(--select-border-hover);
+}
+
+.app-select:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary-2) 55%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 35%, transparent);
+}
+
+.app-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.app-select option {
+  background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+  color: var(--text);
+}
+
+.app-select--sm {
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.65rem;
+  font-size: 0.75rem;
+}
+
+.app-select--table {
+  background: var(--select-table-bg);
+  border-radius: 0.6rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.7rem;
+}
+
 /* Low-contrast shift coloring */
 :root {
   --shift-a: #5CB338;
@@ -91,33 +154,71 @@ body {
   --weekend-shift: #EB4C4C;
   --weekend-oncall: #F5824A;
   --inbound-option: #94b4c1;
+  --ot: #4a90e2;
 }
 .dark {
-  --shift-a: #5CB338;
-  --oncall-cd: #F1FF5E;
-  --weekend-shift: #EB4C4C;
-  --weekend-oncall: #F5824A;
-  --inbound-option: #9cd5ff;
+  --shift-a: #6aa56e;
+  --oncall-cd: #b7b36a;
+  --weekend-shift: #c87070;
+  --weekend-oncall: #c88a64;
+  --inbound-option: #7f98a7;
+  --ot: #6d96c7;
 }
 .cell-shift-a {
-  background: color-mix(in srgb, var(--shift-a) 18%, transparent);
+  background: color-mix(in srgb, var(--shift-a) var(--cell-mix), transparent);
   color: var(--text);
 }
 .cell-oncall-cd {
-  background: color-mix(in srgb, var(--oncall-cd) 18%, transparent);
+  background: color-mix(in srgb, var(--oncall-cd) var(--cell-mix), transparent);
   color: var(--text);
 }
 .cell-weekend-shift {
-  background: color-mix(in srgb, var(--weekend-shift) 20%, transparent);
+  background: color-mix(in srgb, var(--weekend-shift) var(--cell-mix-weekend), transparent);
   color: var(--text);
 }
 .cell-weekend-oncall {
-  background: color-mix(in srgb, var(--weekend-oncall) 20%, transparent);
+  background: color-mix(in srgb, var(--weekend-oncall) var(--cell-mix-weekend), transparent);
   color: var(--text);
 }
 .cell-inbound-option {
-  background: color-mix(in srgb, var(--inbound-option) 22%, transparent);
+  background: color-mix(in srgb, var(--inbound-option) var(--cell-mix-strong), transparent);
   color: var(--text);
+}
+.cell-ot {
+  background: color-mix(in srgb, var(--ot) var(--cell-mix-strong), transparent);
+  color: var(--text);
+}
+
+/* Team header (group) row styling */
+.team-row {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary-2) 12%, transparent),
+    color-mix(in srgb, var(--surface) 92%, transparent)
+  );
+}
+.team-row td {
+  border-top: 2px solid color-mix(in srgb, var(--primary) 55%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary) 45%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 60%, transparent);
+}
+.team-name-cell {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--primary-2) 22%, transparent),
+    color-mix(in srgb, var(--surface) 92%, transparent)
+  );
+  border-right: 3px solid color-mix(in srgb, var(--primary) 70%, transparent);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+.schedule-table td,
+.schedule-table th {
+  transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+
+.schedule-table select:focus-visible {
+  transform: translateY(-1px);
 }
 
 .scroll-pro::-webkit-scrollbar {
@@ -161,6 +262,36 @@ body {
   animation: analytics-rise 920ms ease both;
 }
 
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 720ms cubic-bezier(0.21, 0.65, 0.27, 0.98) both;
+}
+
+@keyframes soft-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.app-soft-enter {
+  animation: soft-pop 640ms ease both;
+}
+
 .donut-progress {
   transition: stroke-dashoffset 3s ease;
 }
@@ -171,5 +302,11 @@ body {
   }
   .donut-progress {
     transition: none;
+  }
+  .animate-fade-in-up {
+    animation: none;
+  }
+  .app-soft-enter {
+    animation: none;
   }
 }

@@ -12,6 +12,7 @@ const START_YEAR = 1404;
 const START_MONTH = 1;
 const END_YEAR_OPTIONS = [1404, 1405];
 const ORDER = ['thepurple', 'portafavi'];
+const EDITS_KEY_PREFIX = 'shift_schedule_edits_';
 
 const RANGE_OPTIONS = [
   { value: '1', label: '1 ماه', months: 1 },
@@ -25,6 +26,19 @@ const monthToIndex = (year, month) => (year * 12) + (month - 1);
 const indexToMonth = (idx) => ({ year: Math.floor(idx / 12), month: (idx % 12) + 1 });
 const sumRows = (rows, field) => rows.reduce((acc, row) => acc + (row[field] || 0), 0);
 const clampPercent = (value) => Math.min(100, Math.max(0, Math.round(value)));
+const getEditsKey = (year, month) => `${EDITS_KEY_PREFIX}${year}_${String(month).padStart(2, '0')}`;
+
+const loadEditsForMonth = (year, month) => {
+  try {
+    const raw = localStorage.getItem(getEditsKey(year, month));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
 
 const getWeekKeyFromJalali = (dateStr) => {
   const [jyRaw, jmRaw, jdRaw] = String(dateStr || '').split('/');
@@ -62,6 +76,8 @@ const createEmptyRow = (name) => ({
   weekendOncall: 0,
   shiftA: 0,
   oncallCD: 0,
+  otOffWeekday: 0,
+  otOffWeekend: 0,
   // For leaders: store shift counts, convert to hours at render time
   otWeekday: 0,
   otWeekend: 0,
@@ -151,7 +167,7 @@ const DataTable = ({ title, subtitle, rows, type = 'expert' }) => (
     </div>
 
     <div className="max-h-[58vh] overflow-auto scroll-pro">
-      <table className="w-full min-w-[1180px] text-[12px] text-center">
+      <table className="w-full min-w-[1320px] text-[12px] text-center">
         <thead className="bg-[color:var(--surface-2)]/22 sticky top-0 z-10">
           <tr className="border-b border-[color:var(--line)]/45">
             <th className="p-3 text-right text-[color:var(--text)]">نام</th>
@@ -162,6 +178,8 @@ const DataTable = ({ title, subtitle, rows, type = 'expert' }) => (
             {type === 'expert' && <th className="p-3 text-[color:var(--text)]">آنکال آخرهفته</th>}
             {type === 'expert' && <th className="p-3 text-[color:var(--text)]">شیفت A</th>}
             {type === 'expert' && <th className="p-3 text-[color:var(--text)]">آنکال C/D</th>}
+            {type === 'expert' && <th className="p-3 text-[color:var(--text)]">OT وسط هفته</th>}
+            {type === 'expert' && <th className="p-3 text-[color:var(--text)]">OT آخرهفته</th>}
             {type === 'lead' && <th className="p-3 text-[color:var(--text)]">OT وسط هفته</th>}
             {type === 'lead' && <th className="p-3 text-[color:var(--text)]">OT آخرهفته</th>}
             <th className="p-3 text-[color:var(--text)]">ساعت اضافه‌کاری</th>
@@ -188,6 +206,8 @@ const DataTable = ({ title, subtitle, rows, type = 'expert' }) => (
                 {type === 'expert' && <td className="p-3"><ScoreChip>{row.weekendOncall}</ScoreChip></td>}
                 {type === 'expert' && <td className="p-3"><ScoreChip>{row.shiftA}</ScoreChip></td>}
                 {type === 'expert' && <td className="p-3"><ScoreChip>{row.oncallCD}</ScoreChip></td>}
+                {type === 'expert' && <td className="p-3"><ScoreChip>{row.otOffWeekday}</ScoreChip></td>}
+                {type === 'expert' && <td className="p-3"><ScoreChip>{row.otOffWeekend}</ScoreChip></td>}
                 {type === 'lead' && <td className="p-3"><ScoreChip>{leadWeekdayOt}</ScoreChip></td>}
                 {type === 'lead' && <td className="p-3"><ScoreChip>{leadWeekendOt}</ScoreChip></td>}
                 <td className="p-3"><ScoreChip>{totalOtHours}</ScoreChip></td>
@@ -265,7 +285,10 @@ const AnalyticsTable = () => {
       schedulerState = nextState;
       if (idx < fromIdx) continue;
 
-      for (const day of schedule) {
+      const savedEdits = loadEditsForMonth(year, month);
+      const scheduleForMonth = savedEdits || schedule;
+
+      for (const day of scheduleForMonth) {
         rangeDays.push(day);
         const leaderName = day.leader;
 
@@ -289,6 +312,10 @@ const AnalyticsTable = () => {
             if (member.type === 'text') row.text += 1;
             if (member.type === 'inbound' || member.type === 'inbound-option') row.inbound += 1;
             if (member.type === 'outbound') row.outbound += 1;
+            if (member.type === 'ot') {
+              if (day.isWeekend || day.isHoliday) row.otOffWeekend += 1;
+              else row.otOffWeekday += 1;
+            }
 
             if (day.isWeekend && (member.type === 'text' || member.type === 'shift')) row.weekendShift += 1;
             if (day.isWeekend && tData.isOnCall && member.type !== 'off') row.weekendOncall += 1;
@@ -616,17 +643,17 @@ const AnalyticsTable = () => {
             </div>
 
             <div className="flex rounded-xl p-1.5 border border-[color:var(--line)]/45 bg-[color:var(--surface)]/75 shadow-inner gap-1">
-              <select value={range} onChange={(e) => setRange(e.target.value)} className="bg-transparent text-sm px-2 py-1 outline-none font-bold text-[color:var(--text)]">
+              <select value={range} onChange={(e) => setRange(e.target.value)} className="app-select app-select--sm text-sm font-bold">
                 {RANGE_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value} className="bg-[color:var(--surface)] text-[color:var(--text)]">{opt.label}</option>
                 ))}
               </select>
-              <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} className="bg-transparent text-sm px-2 py-1 border-r border-[color:var(--line)]/45 outline-none font-bold text-[color:var(--text)]">
+              <select value={endMonth} onChange={(e) => setEndMonth(Number(e.target.value))} className="app-select app-select--sm text-sm font-bold">
                 {JALAALI_MONTHS.map((m, i) => (
                   <option key={m} value={i + 1} className="bg-[color:var(--surface)] text-[color:var(--text)]">{m}</option>
                 ))}
               </select>
-              <select value={endYear} onChange={(e) => setEndYear(Number(e.target.value))} className="bg-transparent text-sm px-2 py-1 outline-none font-bold text-[color:var(--text)]">
+              <select value={endYear} onChange={(e) => setEndYear(Number(e.target.value))} className="app-select app-select--sm text-sm font-bold">
                 {END_YEAR_OPTIONS.map((y) => (
                   <option key={y} value={y} className="bg-[color:var(--surface)] text-[color:var(--text)]">{y}</option>
                 ))}
@@ -671,7 +698,7 @@ const AnalyticsTable = () => {
               </div>
             )}
           </div>
-          <DataTable title="جدول کارشناسان" subtitle="ستون OT وسط/آخر هفته حذف شد و OT کل به ساعت اضافه شد" rows={analytics.expertRows} type="expert" />
+          <DataTable title="جدول کارشناسان" subtitle="ستون‌های OT وسط هفته و OT آخرهفته (تعطیل‌کاری) اضافه شد" rows={analytics.expertRows} type="expert" />
           <DataTable title="جدول سرشیفت‌ها" subtitle="جزئیات OT و ساعت کل اضافه‌کاری" rows={analytics.leadRows} type="lead" />
         </div>
       </div>

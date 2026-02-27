@@ -16,6 +16,9 @@ import { ExcelIcon } from './icons/Icons.jsx';
 
 const JALAALI_MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
 const STATE_KEY = "shift_scheduler_state_v1";
+const EDITS_KEY_PREFIX = "shift_schedule_edits_";
+
+const getEditsKey = (year, month) => `${EDITS_KEY_PREFIX}${year}_${String(month).padStart(2, '0')}`;
 
 const isThu = (day) => day?.dayName === 'پنج‌شنبه';
 const isFri = (day) => day?.dayName === 'جمعه';
@@ -26,6 +29,141 @@ const csvEscape = (value) => {
   const str = String(value);
   if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
   return str;
+};
+
+const MEMBER_ROLE_OPTIONS = [
+  { value: 'text', label: 'text' },
+  { value: 'inbound', label: 'inbound' },
+  { value: 'outbound', label: 'outbound' },
+  { value: 'inbound-option', label: 'inbound-option' },
+  { value: 'shift', label: 'shift' },
+  { value: 'oncall', label: 'oncall' },
+  { value: 'off', label: 'off' },
+  { value: 'ot', label: 'OT', requiresTeamOff: true },
+];
+
+const SLOT_TYPES = new Set(['A', 'B', 'C', 'D', 'E', 'F']);
+
+const buildSlotOptions = (slotLetter) => {
+  const suffix = slotLetter.toLowerCase();
+  return [
+    { value: `inbound-${suffix}`, label: `inbound-${suffix}` },
+    { value: `outbound-${suffix}`, label: `outbound-${suffix}` },
+    { value: `text1-${suffix}`, label: `text1-${suffix}` },
+    { value: `text2-${suffix}`, label: `text2-${suffix}` },
+    { value: 'inbound-option', label: 'inbound-option' },
+    { value: 'ot', label: 'OT', requiresTeamOff: true },
+    { value: 'off', label: 'off' },
+  ];
+};
+
+const MEMBER_ROLE_MAP = {
+  text: { role: 'text', type: 'text' },
+  inbound: { role: 'inbound', type: 'inbound' },
+  outbound: { role: 'outbound', type: 'outbound' },
+  'inbound-option': { role: 'inbound-option', type: 'inbound-option' },
+  shift: { role: 'Shift', type: 'shift' },
+  oncall: { role: 'Oncall', type: 'oncall' },
+  off: { role: 'off', type: 'off' },
+  ot: { role: 'OT', type: 'ot' },
+};
+
+const normalizeRoleValue = (role) => (role ?? '').toString().trim().toLowerCase();
+
+const isTeamOff = (teamData) => {
+  if (!teamData) return false;
+  if (teamData.slotType === 'OFF') return true;
+  const label = normalizeRoleValue(teamData.statusLabel);
+  if (!label) return false;
+  if (label === 'off') return true;
+  return label.includes('تعطیل');
+};
+
+const getSlotLetter = (day, teamData) => {
+  if (!day || !teamData) return null;
+  if (day.isWeekend || day.isHoliday) return null;
+  const slot = (teamData.slotType ?? '').toString().toUpperCase();
+  return SLOT_TYPES.has(slot) ? slot : null;
+};
+
+const getMemberRoleOptions = (day, teamData, currentValue) => {
+  const slot = getSlotLetter(day, teamData);
+  const base = slot ? buildSlotOptions(slot) : MEMBER_ROLE_OPTIONS;
+  if (!currentValue || base.some((opt) => opt.value === currentValue)) return base;
+  return [{ value: currentValue, label: currentValue }, ...base];
+};
+
+const loadEditsForMonth = (year, month) => {
+  try {
+    const raw = localStorage.getItem(getEditsKey(year, month));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+const persistEditsForMonth = (year, month, schedule) => {
+  try {
+    localStorage.setItem(getEditsKey(year, month), JSON.stringify(schedule));
+  } catch {
+    // ignore
+  }
+};
+
+const clearEditsForMonth = (year, month) => {
+  try {
+    localStorage.removeItem(getEditsKey(year, month));
+  } catch {
+    // ignore
+  }
+};
+
+const getMemberSelectValue = (member) => {
+  if (!member) return 'off';
+
+  const role = normalizeRoleValue(member.role);
+  if (!role || role === '-' || role === 'off' || role.includes('تعطیل')) return 'off';
+  if (role === 'ot') return 'ot';
+  if (role.includes('inbound-option')) return 'inbound-option';
+
+  const slotMatch = role.match(/^(text1|text2|inbound|outbound)-([a-f])$/);
+  if (slotMatch) return `${slotMatch[1]}-${slotMatch[2]}`;
+
+  if (member.type && MEMBER_ROLE_MAP[member.type]) return member.type;
+
+  if (role.includes('inbound')) return 'inbound';
+  if (role.includes('outbound')) return 'outbound';
+  if (role.includes('text')) return 'text';
+  if (role.includes('oncall')) return 'oncall';
+  if (role.includes('shift')) return 'shift';
+
+  return 'off';
+};
+
+const getMemberRoleMeta = (val) => {
+  if (!val) return null;
+  if (MEMBER_ROLE_MAP[val]) return MEMBER_ROLE_MAP[val];
+
+  const normalized = val.toLowerCase();
+  const match = normalized.match(/^(text1|text2|inbound|outbound)-([a-f])$/);
+  if (!match) return null;
+
+  const slot = match[2].toUpperCase();
+  switch (match[1]) {
+    case 'text1':
+      return { role: `Text1-${slot}`, type: 'text' };
+    case 'text2':
+      return { role: `Text2-${slot}`, type: 'text' };
+    case 'inbound':
+      return { role: `Inbound-${slot}`, type: 'inbound' };
+    case 'outbound':
+      return { role: `Outbound-${slot}`, type: 'outbound' };
+    default:
+      return null;
+  }
 };
 
 const ScheduleTable = () => {
@@ -66,9 +204,11 @@ const ScheduleTable = () => {
       const { schedule, nextState } = generateSchedule(sortedTeams, year, month, schedulerState);
 
       setOriginalSchedule(schedule);
-      setEditSchedule(deepClone(schedule));
+      const savedEdits = loadEditsForMonth(year, month);
+      const initialSchedule = savedEdits ? deepClone(savedEdits) : deepClone(schedule);
+      setEditSchedule(initialSchedule);
 
-      const snap = deepClone(schedule);
+      const snap = deepClone(initialSchedule);
       setHistory([snap]);
       setHistoryIndex(0);
 
@@ -94,14 +234,18 @@ const ScheduleTable = () => {
     if (!canUndo) return;
     const newIndex = historyIndex - 1;
     setHistoryIndex(newIndex);
-    setEditSchedule(deepClone(history[newIndex]));
+    const snap = deepClone(history[newIndex]);
+    setEditSchedule(snap);
+    persistEditsForMonth(year, month, snap);
   };
 
   const handleRedo = () => {
     if (!canRedo) return;
     const newIndex = historyIndex + 1;
     setHistoryIndex(newIndex);
-    setEditSchedule(deepClone(history[newIndex]));
+    const snap = deepClone(history[newIndex]);
+    setEditSchedule(snap);
+    persistEditsForMonth(year, month, snap);
   };
 
   const handleReset = () => {
@@ -110,6 +254,7 @@ const ScheduleTable = () => {
     setEditSchedule(snap);
     setHistory([deepClone(snap)]);
     setHistoryIndex(0);
+    clearEditsForMonth(year, month);
   };
 
   const handleEdit = (dayIdx, teamId, mName, val) => {
@@ -117,9 +262,16 @@ const ScheduleTable = () => {
     const teamData = updated[dayIdx].teamsData.find(t => t.teamId === teamId);
     const member = teamData?.members.find(m => m.name === mName);
     if (!member) return;
-    member.role = val;
+    if (val === 'ot' && !isTeamOff(teamData)) return;
+
+    const next = getMemberRoleMeta(val);
+    if (!next) return;
+
+    member.role = next.role;
+    member.type = next.type;
     setEditSchedule(updated);
     pushHistory(updated);
+    persistEditsForMonth(year, month, updated);
   };
 
   const handleLeaderEdit = (dayIdx, val) => {
@@ -127,6 +279,7 @@ const ScheduleTable = () => {
     updated[dayIdx].leader = val;
     setEditSchedule(updated);
     pushHistory(updated);
+    persistEditsForMonth(year, month, updated);
   };
 
   // =======================
@@ -172,6 +325,20 @@ const ScheduleTable = () => {
 
     if (!mustTeamIds || !activeTeamId) return false;
     return mustTeamIds.includes(activeTeamId);
+  };
+
+  const getOriginalTeamData = (dayIdx, teamId) => {
+    const origDay = originalSchedule?.[dayIdx];
+    return origDay?.teamsData?.find(t => t.teamId === teamId) || null;
+  };
+
+  const getDefaultTeamLabel = (dayIdx, day, teamId) => {
+    const orig = getOriginalTeamData(dayIdx, teamId);
+    if (!orig) return '-';
+
+    if (day?.isWeekend || day?.isHoliday) return orig.statusLabel || '-';
+    if (orig.slotType && orig.slotType !== 'OFF') return orig.slotType;
+    return orig.statusLabel || '-';
   };
 
   const applyTeamAction = (dayIdx, targetTeamId, action) => {
@@ -268,21 +435,11 @@ const ScheduleTable = () => {
     const targetTeam = day.teamsData.find(t => t.teamId === targetTeamId);
     if (!targetTeam) return;
 
-    if (action === 'neutral') {
-      if (weekend) {
-        restoreTeamFromOriginal(targetTeamId);
-      } else {
-        targetTeam.isOnCall = false;
-        targetTeam.statusLabel = '-';
-
-        if (targetTeam.slotType === 'A') targetTeam.slotType = 'B';
-        if (targetTeam.slotType === 'C' || targetTeam.slotType === 'D') targetTeam.slotType = 'B';
-
-        targetTeam.uiOverride = 'neutral';
-      }
-
+    if (action === 'default' || action === 'neutral') {
+      restoreTeamFromOriginal(targetTeamId);
       setEditSchedule(updated);
       pushHistory(updated);
+      persistEditsForMonth(year, month, updated);
       return;
     }
 
@@ -299,6 +456,7 @@ const ScheduleTable = () => {
 
       setEditSchedule(updated);
       pushHistory(updated);
+      persistEditsForMonth(year, month, updated);
       return;
     }
 
@@ -313,6 +471,7 @@ const ScheduleTable = () => {
 
       setEditSchedule(updated);
       pushHistory(updated);
+      persistEditsForMonth(year, month, updated);
       return;
     }
 
@@ -320,15 +479,24 @@ const ScheduleTable = () => {
       setTeamOff(targetTeam);
       setEditSchedule(updated);
       pushHistory(updated);
+      persistEditsForMonth(year, month, updated);
       return;
     }
   };
 
-  const teamSelectValue = (day, teamId) => {
+  const teamSelectValue = (day, dayIdx, teamId) => {
     const tData = day.teamsData.find(t => t.teamId === teamId);
-    if (!tData) return 'neutral';
+    if (!tData) return 'default';
 
-    if (tData.uiOverride === 'neutral') return 'neutral';
+    if (tData.uiOverride === 'neutral') return 'default';
+
+    const orig = getOriginalTeamData(dayIdx, teamId);
+    const isDefault = !!(orig
+      && tData.statusLabel === orig.statusLabel
+      && tData.slotType === orig.slotType
+      && tData.isOnCall === orig.isOnCall);
+
+    if (isDefault) return 'default';
 
     if (tData.statusLabel === 'Shift') return 'shift';
     if (tData.statusLabel === 'Oncall') return 'oncall';
@@ -338,7 +506,7 @@ const ScheduleTable = () => {
     if (tData.isOnCall) return 'oncall';
     if (tData.slotType === 'A') return 'shift';
 
-    return 'neutral';
+    return 'default';
   };
 
   // =====================================================================
@@ -434,13 +602,13 @@ const ScheduleTable = () => {
   return (
     <div className="w-full font-sans z-10">
       {/* Outer premium frame */}
-      <div className="relative app-surface overflow-hidden rounded-3xl">
+      <div className="relative app-surface overflow-hidden rounded-3xl app-soft-enter">
         {/* Soft glow */}
         <div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full bg-[color:var(--primary-2)]/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -right-24 w-96 h-96 rounded-full bg-[color:var(--primary)]/10 blur-3xl" />
 
         {/* Top bar */}
-        <div className="p-5 bg-[color:var(--surface-2)]/18 backdrop-blur-xl flex justify-between items-center border-b border-[color:var(--line)]/45 sticky top-0 z-10">
+        <div className="p-5 bg-[color:var(--surface-2)]/18 backdrop-blur-xl flex justify-between items-center border-b border-[color:var(--line)]/45 sticky top-0 z-10 transition-colors">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-2xl bg-[color:var(--surface-2)]/35 border border-[color:var(--line)]/45 grid place-items-center shadow-inner">
@@ -456,11 +624,11 @@ const ScheduleTable = () => {
 
             <div className="h-8 w-px bg-[color:var(--line)]/45 mx-1 hidden md:block" />
 
-            <div className="flex bg-[color:var(--surface)]/75 rounded-xl p-1.5 border border-[color:var(--line)]/45 shadow-inner">
+            <div className="flex bg-[color:var(--surface)]/75 rounded-xl p-1.5 border border-[color:var(--line)]/45 shadow-inner gap-1">
               <select
                 value={month}
                 onChange={e => setMonth(Number(e.target.value))}
-                className="bg-transparent text-sm px-2 py-1 outline-none font-bold text-[color:var(--text)]"
+                className="app-select app-select--sm text-sm font-bold"
               >
                 {JALAALI_MONTHS.map((m, i) => (
                   <option key={i} value={i + 1} className="bg-[color:var(--surface)] text-[color:var(--text)]">
@@ -472,7 +640,7 @@ const ScheduleTable = () => {
               <select
                 value={year}
                 onChange={e => setYear(Number(e.target.value))}
-                className="bg-transparent text-sm px-2 py-1 border-l border-[color:var(--line)]/45 outline-none font-bold text-[color:var(--text)]"
+                className="app-select app-select--sm text-sm font-bold"
               >
                 <option value={1404} className="bg-[color:var(--surface)] text-[color:var(--text)]">۱۴۰۴</option>
                 <option value={1405} className="bg-[color:var(--surface)] text-[color:var(--text)]">۱۴۰۵</option>
@@ -526,7 +694,7 @@ const ScheduleTable = () => {
 
         {/* Table container */}
         <div className="scroll-pro overflow-auto max-h-[78vh]">
-          <table className="w-full border-collapse text-[11px] text-center table-fixed">
+          <table className="schedule-table w-full border-collapse text-[11px] text-center table-fixed">
             <thead className="sticky top-0 z-30">
               <tr className="bg-[color:var(--surface-2)]/25 backdrop-blur-xl border-b border-[color:var(--line)]/45 shadow-sm">
                 <th className="bg-[color:var(--surface)] p-4 border-r border-[color:var(--line)]/45 w-[170px] text-right text-[color:var(--text)]">
@@ -570,7 +738,7 @@ const ScheduleTable = () => {
                 {editSchedule.map((day, i) => (
                   <th key={i} className="p-1 border-r border-[color:var(--line)]/30">
                     <select
-                      className="bg-transparent w-full text-center font-black text-[color:var(--text)] outline-none placeholder:text-[color:var(--muted)]"
+                      className="app-select app-select--table w-full text-center font-black"
                       value={day.leader || "-"}
                       onChange={(e) => handleLeaderEdit(i, e.target.value)}
                       title="انتخاب سرشیفت"
@@ -599,9 +767,9 @@ const ScheduleTable = () => {
               {sortedTeams.map(team => (
                 <React.Fragment key={team.id}>
                   {/* Team row */}
-                  <tr className="bg-[color:var(--surface-2)]/14 font-black border-b border-[color:var(--line)]/30">
+                  <tr className="bg-[color:var(--surface-2)]/14 font-black border-b border-[color:var(--line)]/30 team-row">
                     {/* âœ… ÙÙ‚Ø· Ø§ÙÙ‚ÛŒ sticky: right-0 (Ø¹Ù…ÙˆØ¯ÛŒ sticky Ù†ÛŒØ³Øª Ú†ÙˆÙ† top Ù†Ø¯Ø§Ø±ÛŒÙ…) */}
-                    <td className="sticky right-0 z-20 bg-[color:var(--surface)] p-3 px-4 border-l border-[color:var(--line)]/35 text-right text-[color:var(--primary)] text-[11px] shadow-[-10px_0_20px_rgba(0,0,0,0.25)]">
+                    <td className="sticky right-0 z-20 bg-[color:var(--surface)] p-3 px-4 border-l border-[color:var(--line)]/35 text-right text-[color:var(--primary)] text-[11px] shadow-[-10px_0_20px_rgba(0,0,0,0.25)] team-name-cell">
                       {team.name}
                     </td>
 
@@ -625,7 +793,8 @@ const ScheduleTable = () => {
                               : (!weekend && tData?.isOnCall)
                                 ? "cell-oncall-cd"
                                 : "app-muted";
-                      const val = teamSelectValue(day, team.id);
+                      const val = teamSelectValue(day, dayIdx, team.id);
+                      const defaultLabel = getDefaultTeamLabel(dayIdx, day, team.id);
 
                       return (
                         <td
@@ -635,11 +804,11 @@ const ScheduleTable = () => {
                           <select
                             value={val}
                             onChange={(e) => applyTeamAction(dayIdx, team.id, e.target.value)}
-                            className="bg-transparent w-full text-center outline-none font-black"
+                            className="app-select app-select--table w-full text-center font-black"
                             title={tData?.statusLabel || '-'}
                           >
-                            <option className="bg-[color:var(--surface)] text-[color:var(--text)]" value="neutral">
-                              {tData?.uiOverride === 'neutral' ? '-' : (tData?.statusLabel || '-')}
+                            <option className="bg-[color:var(--surface)] text-[color:var(--text)]" value="default">
+                              {defaultLabel}
                             </option>
                             <option className="bg-[color:var(--surface)] text-[color:var(--text)]" value="shift">Shift</option>
                             <option className="bg-[color:var(--surface)] text-[color:var(--text)]" value="oncall">Oncall</option>
@@ -686,28 +855,31 @@ const ScheduleTable = () => {
                       {editSchedule.map((day, i) => {
                         const tData = day.teamsData.find(d => d.teamId === team.id);
                         const mData = tData?.members.find(m => m.name === member);
+                        const selectValue = getMemberSelectValue(mData);
+                        const options = getMemberRoleOptions(day, tData, selectValue);
+                        const teamOff = isTeamOff(tData);
+                        const isOt = selectValue === 'ot';
 
                         let cellStyle = "app-muted";
 
                         const weekend = day.isWeekend || day.isHoliday;
 
-                        if (mData?.type === 'inbound-option') {
+                        if (isOt) {
+                          cellStyle = "cell-ot font-bold";
+
+                        } else if (mData?.type === 'inbound-option') {
                           cellStyle = "cell-inbound-option font-bold shadow-inner";
 
                         } else if (weekend && tData?.statusLabel === 'Shift') {
-                          // ðŸ”´ Ø§Ø¹Ø¶Ø§ÛŒ Ø´ÛŒÙØª Ø¢Ø®Ø±Ù‡ÙØªÙ‡
                           cellStyle = "cell-weekend-shift";
 
                         } else if (weekend && tData?.isOnCall) {
-                          // ðŸŸ  Ø§Ø¹Ø¶Ø§ÛŒ Ø¢Ù†Ú©Ø§Ù„ Ø¢Ø®Ø±Ù‡ÙØªÙ‡
                           cellStyle = "cell-weekend-oncall";
 
                         } else if (!weekend && tData?.slotType === 'A') {
-                          // ðŸŸ¢ Ø§Ø¹Ø¶Ø§ÛŒ Ø´ÛŒÙØª A ÙˆØ³Ø· Ù‡ÙØªÙ‡
                           cellStyle = "cell-shift-a";
 
                         } else if (!weekend && tData?.isOnCall && (tData?.slotType === 'C' || tData?.slotType === 'D')) {
-                          // ðŸŸ¡ Ø§Ø¹Ø¶Ø§ÛŒ Ø¢Ù†Ú©Ø§Ù„ ÙˆØ³Ø· Ù‡ÙØªÙ‡ (C/D)
                           cellStyle = "cell-oncall-cd";
 
                         } else if (weekend) {
@@ -716,11 +888,23 @@ const ScheduleTable = () => {
 
                         return (
                           <td key={i} className={`p-0 border-r border-[color:var(--line)]/25 ${cellStyle}`}>
-                            <input
-                              className="bg-transparent w-full h-full p-2 text-center outline-none placeholder:text-[color:var(--muted)]"
-                              value={mData?.role || "-"}
+                            <select
+                              className="app-select app-select--table w-full h-full text-center"
+                              value={selectValue}
                               onChange={(e) => handleEdit(i, team.id, member, e.target.value)}
-                            />
+                              title={mData?.role || "-"}
+                            >
+                              {options.map((opt) => (
+                                <option
+                                  key={opt.value}
+                                  value={opt.value}
+                                  className="bg-[color:var(--surface)] text-[color:var(--text)]"
+                                  disabled={opt.requiresTeamOff && !teamOff}
+                                >
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                         );
                       })}
