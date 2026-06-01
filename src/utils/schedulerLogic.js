@@ -22,10 +22,17 @@ const MAX_LEADER_WEEKEND_SHIFTS = 1;
 const LEADER_BALANCE_WINDOW_MONTHS = 2;
 const MIN_MONTHLY_ONCALL_CD = 3;
 const MAX_MONTHLY_ONCALL_CD = 4;
-
+const getTeamSlotLetter = (teamIndex, slotAIndex, totalTeams) => {
+  const diff = (teamIndex - slotAIndex + totalTeams) % totalTeams;
+  const slots = ['A', 'B', 'C', 'D', 'E'];
+  if (diff < slots.length) {
+    return slots[diff];
+  }
+  return 'OFF';
+};
 const SLOT_TASK_CONFIG = {
   'A': { inRatio: 0.85 }, 'B': { inRatio: 0.80 }, 'C': { inRatio: 0.70 },
-  'D': { inRatio: 0.60 }, 'E': { inRatio: 0.50 }, 'F': { inRatio: 0.40 }
+  'D': { inRatio: 0.60 }, 'E': { inRatio: 0.50 }
 };
 
 const PUBLIC_HOLIDAYS = ["11-22", "12-29", "12-30", "01-01", "01-02", "01-03", "01-04", "01-12", "01-13"];
@@ -41,9 +48,11 @@ const getDayName = (idx) => ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 
 export const deepClone = (x) => JSON.parse(JSON.stringify(x));
 
 const WEEKEND_SEQUENCE = [
-  [0, 1, 2], [3, 4, 5],
-  [1, 2, 0], [4, 5, 3],
-  [2, 0, 1], [5, 3, 4]
+  [0, 1, 2], // پنجشنبه شیفت، جمعه شیفت، آنکال
+  [3, 4, 0],
+  [1, 2, 3],
+  [4, 0, 1],
+  [2, 3, 4]
 ];
 
 // ✅ Week starts Saturday
@@ -317,6 +326,10 @@ const pickTextShiftMembers = (members, startIdx, memberLastTask) => {
 };
 
 export const generateSchedule = (teams, year, month, prevState = null) => {
+  if (!teams || teams.length < 5) {
+    console.warn('حداقل 5 تیم نیاز است:', teams?.length);
+    return { schedule: [], nextState: prevState || buildDefaultState() };
+  }
   const schedule = [];
   const daysInMonth = jalaali.jalaaliMonthLength(year, month);
 
@@ -422,6 +435,7 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
 
   let fridayShiftTeamId = null;
 
+
   const buildWeekdayCdOpportunities = () => {
     const byDay = {};
     const totals = {};
@@ -446,10 +460,11 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
       const dIsWorkingDay = !dIsThu && !dIsFri && !dIsPublicHoliday;
 
       if (dIsThu) {
-        const seq = WEEKEND_SEQUENCE[preWeekRotationIndex % 6];
-        const teamThuShift = teams[seq[0]];
-        const teamFriShift = teams[seq[1]];
-        const teamOnCall = teams[seq[2]];
+        const seq = WEEKEND_SEQUENCE[preWeekRotationIndex % WEEKEND_SEQUENCE.length];
+        // ⚠️ اضافه کردن بررسی برای وجود تیم در ایندکس‌ها
+        const teamThuShift = seq[0] < teams.length ? teams[seq[0]] : null;
+        const teamFriShift = seq[1] < teams.length ? teams[seq[1]] : null;
+        const teamOnCall = seq[2] < teams.length ? teams[seq[2]] : null;
 
         if (teamThuShift && preWeekendActivityCount[teamThuShift.id] < 2) {
           preWeekendActivityCount[teamThuShift.id]++;
@@ -470,13 +485,17 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
 
       workingDays.push(d);
 
-      const slotA = preWorkingDayCounter % teams.length;
-      const cId = teams[(slotA + 2) % teams.length]?.id || null;
-      const dId = teams[(slotA + 3) % teams.length]?.id || null;
+      const teamCount = teams.length
+      const slotA = preWorkingDayCounter % teamCount;
+
+      // ⚠️ محاسبه ایندکس‌ها با MODULO teamCount
+      const cId = teams[(slotA + 2) % teamCount]?.id || null;
+      const dId = teams[(slotA + 3) % teamCount]?.id || null;
 
       byDay[d] = { cId, dId };
       if (cId) totals[cId] = (totals[cId] || 0) + 1;
       if (dId) totals[dId] = (totals[dId] || 0) + 1;
+
 
       preWorkingDayCounter++;
     }
@@ -505,7 +524,7 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
       const pair = weekdayCdByDay[d];
       if (!pair) continue;
 
-      const onCallSlot = (Math.floor(counter / 6) % 2 === 0) ? 'C' : 'D';
+      const onCallSlot = (Math.floor(workingDayCounter / teams.length) % 2 === 0) ? 'C' : 'D';
       const preferredId = onCallSlot === 'C' ? pair.cId : pair.dId;
 
       if (preferredId && !seen.has(preferredId)) {
@@ -648,10 +667,10 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
     let weekendOnCallId = null;
 
     if (isThu) {
-      const seq = WEEKEND_SEQUENCE[state.weekRotationIndex % 6];
-      const teamThuShift = teams[seq[0]];
-      const teamFriShift = teams[seq[1]];
-      const teamOnCall = teams[seq[2]];
+      const seq = WEEKEND_SEQUENCE[state.weekRotationIndex % WEEKEND_SEQUENCE.length];
+      const teamThuShift = seq[0] < teams.length ? teams[seq[0]] : null;
+      const teamFriShift = seq[1] < teams.length ? teams[seq[1]] : null;
+      const teamOnCall = seq[2] < teams.length ? teams[seq[2]] : null;
 
       if (teamThuShift && monthlyWeekendActivityCount[teamThuShift.id] < 2) {
         weekendShiftId = teamThuShift.id;
@@ -719,8 +738,7 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
       slotAIndex = workingDayCounter % teams.length;
     }
 
-    const onCallSlot = (Math.floor(workingDayCounter / 6) % 2 === 0) ? 'C' : 'D';
-
+    const onCallSlot = (Math.floor(workingDayCounter / teams.length) % 2 === 0) ? 'C' : 'D';
     // ? weekly tracking
     const weekKey = getWeekKey(dateObj);
     if (!state.weeklyOncallMap[weekKey]) state.weeklyOncallMap[weekKey] = {};
@@ -729,9 +747,18 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
     // ✅ compute slotType ALWAYS by diff (no swap)
     const slotByTeamId = {};
     if (isWorkingDay && slotAIndex >= 0) {
+      const teamCount = teams.length;
+      // برای 5 تیم، اسلات‌های A تا E رو به ترتیب اختصاص بده
+      const slots = ['A', 'B', 'C', 'D', 'E'];
+
       teams.forEach((team, teamIndex) => {
-        const diff = (teamIndex - slotAIndex + teams.length) % teams.length;
-        slotByTeamId[team.id] = ['A', 'B', 'C', 'D', 'E', 'F'][diff];
+        const diff = (teamIndex - slotAIndex + teamCount) % teamCount;
+        // فقط برای ایندکس‌هایی که در محدوده slots هستند
+        if (diff < slots.length) {
+          slotByTeamId[team.id] = slots[diff];
+        } else {
+          slotByTeamId[team.id] = 'OFF';
+        }
       });
     }
 
@@ -888,8 +915,7 @@ export const generateSchedule = (teams, year, month, prevState = null) => {
     const currentOtHours = isWorkingDay ? 2 : ((isThu || isFri) ? 7 : 0);
     const activeShiftTeamId =
       (isThu || isFri) ? weekendShiftId
-        : (isWorkingDay && slotAIndex >= 0 ? teams[slotAIndex].id : null);
-
+        : (isWorkingDay && slotAIndex >= 0 && teams[slotAIndex] ? teams[slotAIndex].id : null);
     const isWeekendLeaderDay = isThu || isFri;
     let selectedLeader = pickLeaderForDay(activeShiftTeamId, currentOtHours, isWeekendLeaderDay);
 

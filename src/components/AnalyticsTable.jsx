@@ -242,8 +242,8 @@ const AnalyticsTable = () => {
   }, [teams]);
 
   const analytics = useMemo(() => {
-    if (!sortedTeams || sortedTeams.length < 6) {
-      return { rows: [], expertRows: [], leadRows: [], from: null, to: null, rules: [] };
+    if (!sortedTeams || sortedTeams.length < 5) {
+      return <div className="p-10 text-center app-muted rounded-2xl app-surface">لطفا حداقل 5 تیم تعریف کنید.</div>;
     }
 
     const byName = new Map();
@@ -620,8 +620,8 @@ const AnalyticsTable = () => {
     return { rows, expertRows, leadRows, from: indexToMonth(fromIdx), to: indexToMonth(toIdx), rules, leaderRules };
   }, [sortedTeams, endYear, endMonth, range]);
 
-  if (!sortedTeams || sortedTeams.length < 6) {
-    return <div className="p-10 text-center app-muted rounded-2xl app-surface">لطفا حداقل 6 تیم تعریف کنید.</div>;
+  if (!sortedTeams || sortedTeams.length < 5) {
+    return <div className="p-10 text-center app-muted rounded-2xl app-surface">لطفا حداقل 5 تیم تعریف کنید.</div>;
   }
 
   const totalInbound = sumRows(analytics.expertRows, 'inbound');

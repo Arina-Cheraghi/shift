@@ -56,7 +56,7 @@ const MEMBER_ROLE_OPTIONS = [
   { value: 'ot', label: 'OT', requiresTeamOff: true },
 ];
 
-const SLOT_TYPES = new Set(['A', 'B', 'C', 'D', 'E', 'F']);
+const SLOT_TYPES = new Set(['A', 'B', 'C', 'D', 'E']);
 
 const buildSlotOptions = (slotLetter) => {
   const suffix = slotLetter.toLowerCase();   // values stay lowercase
@@ -213,7 +213,7 @@ const ScheduleTable = () => {
   const sortedTeams = useMemo(() => {
     if (!teams) return teams;
 
-    const ORDER = ["thepurple", "portafavi"];
+    const ORDER = ["thepurple", "portafavi", "trouble", "kahvaz", "gorga"];
     const orderMap = new Map(ORDER.map((id, idx) => [id, idx]));
 
     return [...teams].sort((a, b) => {
@@ -231,7 +231,7 @@ const ScheduleTable = () => {
   }, []);
 
   useEffect(() => {
-    if (sortedTeams && sortedTeams.length >= 6) {
+    if (sortedTeams && sortedTeams.length >= 5) {
       const { schedule, nextState } = generateSchedule(sortedTeams, year, month, schedulerState);
 
       setOriginalSchedule(schedule);
@@ -246,7 +246,6 @@ const ScheduleTable = () => {
       setSchedulerState(nextState);
       try { localStorage.setItem(STATE_KEY, JSON.stringify(nextState)); } catch { /* ignore */ }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortedTeams, year, month]);
 
   const canUndo = historyIndex > 0;
@@ -622,13 +621,13 @@ const ScheduleTable = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (!sortedTeams || sortedTeams.length < 6) {
-    return (
-      <div className="p-10 text-center app-muted app-surface rounded-2xl m-4">
-        لطفا حداقل 6 تیم تعریف کنید.
-      </div>
-    );
-  }
+  if (!sortedTeams || sortedTeams.length < 5) {
+  return (
+    <div className="p-10 text-center app-muted app-surface rounded-2xl m-4">
+      لطفا حداقل 5 تیم تعریف کنید. (در حال حاضر {sortedTeams?.length || 0} تیم دارید)
+    </div>
+  );
+}
 
   return (
     <div className="w-full font-sans z-10">
